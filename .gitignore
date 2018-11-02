@@ -2,3 +2,5 @@ public/downloads/
 public/uploads/
 
 node_modules
+build
+coverage

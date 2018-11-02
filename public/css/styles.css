@@ -19,7 +19,7 @@ a {
   }
   #drop-area {
     border-radius: 20px;
-    width: 480px;
+    max-width: 480px;
     margin: 50px auto;
     padding: 20px;
   }

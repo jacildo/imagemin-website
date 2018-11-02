@@ -1,0 +1,129 @@
+extends ../layout
+
+block content
+    #drop-area.border
+        form(class='my-form')
+            p(class='lead text-secondary').
+                Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region
+
+            input(type='file' id='fileElem' multiple accept='image/*' onchange='handleFiles(this.files)')
+
+            p(class='small' id='downloads-directory')
+            a(href='#' class='small' id='downloads-clear')
+                strong Delete All
+
+        progress(id='progress-bar' max=100 value=0)
+        
+        #gallery
+
+block scripts
+    script.
+        // ************************ Drag and drop ***************** //
+        let dropArea = document.getElementById('drop-area');
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false)
+            document.body.addEventListener(eventName, preventDefaults, false)
+        });
+
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false)
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false)
+        });
+
+        // Handle dropped files
+        dropArea.addEventListener('drop', handleDrop, false)
+
+        function preventDefaults(e) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
+
+        function highlight(e) {
+            dropArea.classList.add('highlighted')
+        }
+
+        function unhighlight(e) {
+            dropArea.classList.remove('highlighted')
+        }
+
+        function handleDrop(e) {
+            var dt = e.dataTransfer
+            var files = dt.files
+
+            handleFiles(files)
+        }
+
+        let uploadProgress = []
+        let progressBar = document.getElementById('progress-bar')
+
+        function initializeProgress(numFiles) {
+            progressBar.value = 0
+            uploadProgress = []
+
+            for (let i = numFiles; i > 0; i--) {
+                uploadProgress.push(0)
+            }
+        }
+
+        function updateProgress(fileNumber, percent) {
+            uploadProgress[fileNumber] = percent
+            let total = uploadProgress.reduce((tot, curr) => tot + curr, 0) / uploadProgress.length
+            console.debug('update', fileNumber, percent, total)
+            progressBar.value = total
+        }
+
+        function handleFiles(files) {
+            files = [...files]
+            initializeProgress(files.length)
+            files.forEach(uploadFile)
+            files.forEach(previewFile)
+        }
+
+        function previewFile(file) {
+            let reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onloadend = function () {
+                let img = document.createElement('img')
+                img.src = reader.result
+                document.getElementById('gallery').appendChild(img)
+            }
+        }
+
+        function uploadFile(file, i) {
+            console.log(file['type']);
+            if(!['image/jpeg', 'image/png'].includes(file['type'])){
+                return;
+            }
+
+            var url = '/api/image';
+            var formData = new FormData();
+            formData.append('file', file);
+
+            axios.post(url, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+        }
+
+    script.
+        $(document).ready(function () {
+            axios.get('/api/downloads')
+                .then((res) => {
+                    $('#downloads-directory').html(`<strong style='color: #676767;'>Compressed images:</strong> <br />${res.data.dir}`);
+                });
+
+            $('#downloads-clear').click(function () {
+                axios.post('/api/clean')
+                    .then((res) => {
+                        console.log('downloads cleared');
+                    })
+            })
+        });
