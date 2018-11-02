@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO"
+        crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/styles.css" />
+    <style type="text/css">
+        #drop_zone {
+            border: 5px solid blue;
+            width: 200px;
+            height: 100px;
+        }
+    </style>
+
+    <title>Piña Image Compressor</title>
+</head>
+
+<body>
+    <nav class="navbar navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="#">Piña Image Compressor</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="drop-area" class="border">
+            <form class="my-form">
+                <p class="lead text-secondary">
+                    Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region
+                </p>
+                <input type="file" id="fileElem" multiple accept="image/*" onchange="handleFiles(this.files)">
+                <!-- <label class="btn btn-primary" for="photos">Select some files</label> -->
+                <p class="small" id="downloads-directory"></p>
+                <a href="#" class="small" id="downloads-clear">
+                    <strong>Delete all</strong>
+                </a>
+            </form>
+            <progress id="progress-bar" max=100 value=0></progress>
+            <div id="gallery" />
+        </div>
+    </div>
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" 
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" 
+        integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" 
+        integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js" 
+        integrity="sha256-mpnrJ5DpEZZkwkE1ZgkEQQJW/46CSEh/STrZKOB/qoM=" 
+        crossorigin="anonymous"></script>
+    <script>
+        // ************************ Drag and drop ***************** //
+        let dropArea = document.getElementById("drop-area");
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false)
+            document.body.addEventListener(eventName, preventDefaults, false)
+        });
+
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false)
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false)
+        });
+
+        // Handle dropped files
+        dropArea.addEventListener('drop', handleDrop, false)
+
+        function preventDefaults(e) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
+
+        function highlight(e) {
+            dropArea.classList.add('highlighted')
+        }
+
+        function unhighlight(e) {
+            dropArea.classList.remove('highlighted')
+        }
+
+        function handleDrop(e) {
+            var dt = e.dataTransfer
+            var files = dt.files
+
+            handleFiles(files)
+        }
+
+        let uploadProgress = []
+        let progressBar = document.getElementById('progress-bar')
+
+        function initializeProgress(numFiles) {
+            progressBar.value = 0
+            uploadProgress = []
+
+            for (let i = numFiles; i > 0; i--) {
+                uploadProgress.push(0)
+            }
+        }
+
+        function updateProgress(fileNumber, percent) {
+            uploadProgress[fileNumber] = percent
+            let total = uploadProgress.reduce((tot, curr) => tot + curr, 0) / uploadProgress.length
+            console.debug('update', fileNumber, percent, total)
+            progressBar.value = total
+        }
+
+        function handleFiles(files) {
+            files = [...files]
+            initializeProgress(files.length)
+            files.forEach(uploadFile)
+            files.forEach(previewFile)
+        }
+
+        function previewFile(file) {
+            let reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onloadend = function () {
+                let img = document.createElement('img')
+                img.src = reader.result
+                document.getElementById('gallery').appendChild(img)
+            }
+        }
+
+        function uploadFile(file, i) {
+            console.log(file["type"]);
+            if(!["image/jpeg", "image/png"].includes(file["type"])){
+                return;
+            }
+
+            var url = '/api/image';
+            var formData = new FormData();
+            formData.append("file", file);
+
+            axios.post(url, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+        }
+
+    </script>
+
+    <!-- On load -->
+    <script>
+        $(document).ready(function () {
+            axios.get('/api/downloads')
+                .then((res) => {
+                    $('#downloads-directory').html(`<strong style="color: #676767;">Compressed images:</strong> <br />${res.data.dir}`);
+                });
+
+            $("#downloads-clear").click(function () {
+                axios.post('/api/clean')
+                    .then((res) => {
+                        console.log("downloads cleared");
+                    })
+            })
+        });
+        
+    </script>
+</body>
+
+</html>
